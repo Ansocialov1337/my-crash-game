@@ -61,3 +61,19 @@ async def get_user_stats(user_id: int):
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
+
+async def get_leaderboard(limit: int = 10):
+    """Получение топа игроков"""
+    async with aiosqlite.connect('bot.db') as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            '''
+            SELECT user_id, username, balance, total_games, total_won
+            FROM users
+            ORDER BY balance DESC
+            LIMIT ?
+            ''',
+            (limit,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
