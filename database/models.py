@@ -1,54 +1,32 @@
-"""
-Модели данных
-"""
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional
+import aiosqlite
 
-
-@dataclass
-class User:
-    """Модель пользователя"""
-    telegram_id: int
-    username: Optional[str]
-    first_name: Optional[str]
-    balance: int
-    last_bonus: Optional[str]
-    total_bets: int
-    total_wins: int
-    total_profit: int
-    created_at: str
-
-    @property
-    def winrate(self) -> float:
-        """Процент побед"""
-        if self.total_bets == 0:
-            return 0.0
-        return round((self.total_wins / self.total_bets) * 100, 1)
-
-
-@dataclass
-class GameHistory:
-    """Модель истории игры"""
-    id: int
-    telegram_id: int
-    bet_amount: int
-    crash_point: float
-    cashout_point: Optional[float]
-    profit: int
-    created_at: str
-
-    @property
-    def is_win(self) -> bool:
-        """Была ли игра выигрышной"""
-        return self.profit > 0
-
-
-@dataclass
-class ActiveGame:
-    """Модель активной игры"""
-    game_id: str
-    telegram_id: int
-    bet_amount: int
-    crash_point: float
-    started_at: str
+async def init_db():
+    """Инициализация базы данных"""
+    async with aiosqlite.connect('bot.db') as db:
+        # Таблица пользователей
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                balance REAL DEFAULT 1000.0,
+                total_games INTEGER DEFAULT 0,
+                total_won REAL DEFAULT 0,
+                total_lost REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Таблица игр
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS games (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                bet_amount REAL,
+                multiplier REAL,
+                win_amount REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+        
+        await db.commit()
