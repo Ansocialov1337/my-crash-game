@@ -7,7 +7,7 @@ import logging
 from aiogram import Bot, Dispatcher
 
 from utils.config import BOT_TOKEN, WEBAPP_HOST, WEBAPP_PORT, WEBAPP_URL
-from database.queries import init_db
+from database.models import init_db
 from bot.handlers import router as bot_router
 from web.server import create_app
 from aiohttp import web
@@ -76,4 +76,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Приложение остановлено")
     except Exception as e:
+
         print(f"\n❌ Критическая ошибка: {e}")
