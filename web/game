@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crash Game - Игра</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .game-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .balance {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .game-area {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .multiplier {
+            font-size: 4em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 30px 0;
+        }
+        
+        .rocket {
+            font-size: 5em;
+            animation: float 2s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .controls {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: bold;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1.1em;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        
+        .status.waiting {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status.playing {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+        
+        .status.won {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .status.lost {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <div>
+                <div style="color: #666; font-size: 0.9em;">Баланс</div>
+                <div class="balance" id="balance">1000.00 ₽</div>
+            </div>
+            <div>
+                <div style="color: #666; font-size: 0.9em;">Игр</div>
+                <div style="font-size: 1.2em; font-weight: bold;" id="games">0</div>
+            </div>
+        </div>
+        
+        <div class="game-area">
+            <div class="rocket">🚀</div>
+            <div class="multiplier" id="multiplier">1.00x</div>
+            <div class="status waiting" id="status">Сделайте ставку</div>
+        </div>
+        
+        <div class="controls">
+            <div class="input-group">
+                <label for="bet-amount">Сумма ставки (₽)</label>
+                <input type="number" id="bet-amount" value="100" min="10" step="10">
+            </div>
+            
+            <button class="btn btn-primary" id="bet-btn" onclick="placeBet()">
+                🎲 Сделать ставку
+            </button>
+            
+            <button class="btn btn-success" id="cashout-btn" onclick="cashout()" style="display: none;">
+                💰 Забрать выигрыш
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        let tg = window.Telegram.WebApp;
+        tg.expand();
+        
+        let gameState = 'waiting'; // waiting, playing, finished
+        let currentMultiplier = 1.00;
+        let betAmount = 0;
+        let gameInterval = null;
+        let crashPoint = 0;
+        
+        // Инициализация
+        function init() {
+            updateBalance(1000);
+            updateGames(0);
+        }
+        
+        function updateBalance(amount) {
+            document.getElementById('balance').textContent = amount.toFixed(2) + ' ₽';
+        }
+        
+        function updateGames(count) {
+            document.getElementById('games').textContent = count;
+        }
+        
+        function updateMultiplier(value) {
+            document.getElementById('multiplier').textContent = value.toFixed(2) + 'x';
+        }
+        
+        function updateStatus(text, className) {
+            const status = document.getElementById('status');
+            status.textContent = text;
+            status.className = 'status ' + className;
+        }
+        
+        function placeBet() {
+            betAmount = parseFloat(document.getElementById('bet-amount').value);
+            
+            if (betAmount < 10) {
+                tg.showAlert('Минимальная ставка 10₽');
+                return;
+            }
+            
+            // Начинаем игру
+            gameState = 'playing';
+            currentMultiplier = 1.00;
+            crashPoint = (Math.random() * 9 + 1).toFixed(2); // От 1.00 до 10.00
+            
+            document.getElementById('bet-btn').style.display = 'none';
+            document.getElementById('cashout-btn').style.display = 'block';
+            document.getElementById('bet-amount').disabled = true;
+            
+            updateStatus('Игра началась!', 'playing');
+            
+            // Анимация множителя
+            gameInterval = setInterval(() => {
+                currentMultiplier += 0.01;
+                updateMultiplier(currentMultiplier);
+                
+                // Проверка краша
+                if (currentMultiplier >= crashPoint) {
+                    crash();
+                }
+            }, 100);
+        }
+        
+        function cashout() {
+            if (gameState !== 'playing') return;
+            
+            clearInterval(gameInterval);
+            gameState = 'finished';
+            
+            const winAmount = (betAmount * currentMultiplier).toFixed(2);
+            
+            document.getElementById('cashout-btn').style.display = 'none';
+            document.getElementById('bet-btn').style.display = 'block';
+            document.getElementById('bet-amount').disabled = false;
+            
+            updateStatus(`Вы выиграли ${winAmount}₽!`, 'won');
+            
+            setTimeout(() => {
+                gameState = 'waiting';
+                updateStatus('Сделайте ставку', 'waiting');
+                updateMultiplier(1.00);
+            }, 3000);
+        }
+        
+        function crash() {
+            clearInterval(gameInterval);
+            gameState = 'finished';
+            
+            document.getElementById('cashout-btn').style.display = 'none';
+            document.getElementById('bet-btn').style.display = 'block';
+            document.getElementById('bet-amount').disabled = false;
+            
+            updateStatus(`💥 Краш на ${currentMultiplier.toFixed(2)}x! Вы проиграли ${betAmount}₽`, 'lost');
+            
+            setTimeout(() => {
+                gameState = 'waiting';
+                updateStatus('Сделайте ставку', 'waiting');
+                updateMultiplier(1.00);
+            }, 3000);
+        }
+        
+        // Запуск при загрузке
+        init();
+    </script>
+</body>
+</html>
