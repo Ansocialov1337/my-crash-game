@@ -16,8 +16,17 @@ async def handle_game(request):
         html = await f.read()
     return web.Response(text=html, content_type='text/html', charset='utf-8')
 
-def setup_routes(app):
-    """Настройка маршрутов"""
+def create_app():
+    """Создание и настройка приложения"""
+    app = web.Application()
+    
+    # Настройка маршрутов
     app.router.add_get('/', handle_index)
     app.router.add_get('/game', handle_game)
-    app.router.add_static('/static', path=os.path.join(os.path.dirname(__file__), 'static'))
+    
+    # Статические файлы
+    static_path = os.path.join(os.path.dirname(__file__), 'static')
+    if os.path.exists(static_path):
+        app.router.add_static('/static', path=static_path)
+    
+    return app
